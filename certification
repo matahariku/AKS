@@ -5,13 +5,13 @@ CKA + AZ-104 + AZ-305 + CKS
 --
 
 Différences entre l'AZ-104 et l'AZ-305
-Certification   Thème principal    						Convient à
+Certification   Thème principal    											Convient à
 AZ-104    	Administrateur Azure, gestion pratique des ressources Azure    	Indispensable si vous travaillez dans l'infrastructure Azure
 AZ-305    	Architecte de solutions Azure, conception d’architectures    	Convient au niveau architecte
-CKA    		Administrateur Kubernetes    					Vous avez déjà réussi cet examen
-CKS    		Sécurité Kubernetes    						Très utile pour la sécurité AKS
-AZ-400    	DevOps CI/CD    						Si vous travaillez beaucoup avec des pipelines
-AZ-500    	Sécurité Azure    						Si vous vous concentrez sur la sécurité Azure
+CKA    		Administrateur Kubernetes    									Vous avez déjà réussi cet examen
+CKS    		Sécurité Kubernetes    											Très utile pour la sécurité AKS
+AZ-400    	DevOps CI/CD    												Si vous travaillez beaucoup avec des pipelines
+AZ-500    	Sécurité Azure    												Si vous vous concentrez sur la sécurité Azure
 
 --
 
@@ -127,9 +127,9 @@ Commencez par l’AZ-104, puis passez directement à l’AZ-305.
 --
 
 Priorités    		Certification    	Quand la passer ?    		    	Raisons
-1 (Maintenant)    	AZ-305    		Dans 2 à 4 mois			    	Le plus pertinent pour votre travail (architecture AKS sur Azure)
-2    			AZ-400    		Après l’AZ-305    			DevOps + GitOps + CI/CD vers AKS
-3    			CKS    			Dans 6 à 8 mois    			Sécurité sur Kubernetes (très appréciée)
+1 (Maintenant)    	AZ-305    		Dans 2 à 4 mois			    Le plus pertinent pour votre travail (architecture AKS sur Azure)
+2    				AZ-400    		Après l’AZ-305    			DevOps + GitOps + CI/CD vers AKS
+3    				CKS    			Dans 6 à 8 mois    			Sécurité sur Kubernetes (très appréciée)
 
 --
 
