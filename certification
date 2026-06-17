@@ -126,7 +126,7 @@ Commencez par l’AZ-104, puis passez directement à l’AZ-305.
 
 --
 
-Priorités    		Certification    	Quand la passer ?    		    	Raisons
+Priorités    		Certification   Quand la passer ?    		Raisons
 1 (Maintenant)    	AZ-305    		Dans 2 à 4 mois			    Le plus pertinent pour votre travail (architecture AKS sur Azure)
 2    				AZ-400    		Après l’AZ-305    			DevOps + GitOps + CI/CD vers AKS
 3    				CKS    			Dans 6 à 8 mois    			Sécurité sur Kubernetes (très appréciée)
