@@ -1,0 +1,172 @@
+Si vous visez le poste d'architecte Azure, la certification à passer est l'AZ-305.
+Mais si vous visez spécifiquement le poste d'expert AKS, la meilleure combinaison est la suivante :
+CKA + AZ-104 + AZ-305 + CKS
+
+--
+
+Différences entre l'AZ-104 et l'AZ-305
+Certification   Thème principal    						Convient à
+AZ-104    	Administrateur Azure, gestion pratique des ressources Azure    	Indispensable si vous travaillez dans l'infrastructure Azure
+AZ-305    	Architecte de solutions Azure, conception d’architectures    	Convient au niveau architecte
+CKA    		Administrateur Kubernetes    					Vous avez déjà réussi cet examen
+CKS    		Sécurité Kubernetes    						Très utile pour la sécurité AKS
+AZ-400    	DevOps CI/CD    						Si vous travaillez beaucoup avec des pipelines
+AZ-500    	Sécurité Azure    						Si vous vous concentrez sur la sécurité Azure
+
+--
+
+Si tu n'as encore aucune certification Azure, je te conseille :
+
+1. AZ-104
+2. AZ-305
+3. CKS
+4. Terraform Associate / AZ-400 (facultatif)
+
+Mais si tu maîtrises déjà assez bien l'infrastructure Azure, tu peux passer directement à :
+
+1. AZ-305
+2. CKS
+3. AZ-400 ou Terraform
+
+--
+
+Important, mon pote : l'AZ-305 n'est pas une certification exclusivement consacrée à AKS
+L'AZ-305 n'est pas un examen dédié à AKS. Son champ d'application est plus large :
+
+Réseaux Azure
+Identité
+Gouvernance
+Calcul
+Stockage
+Surveillance
+Sécurité
+Reprise après sinistre
+Décisions d'architecture
+
+AKS n'en est qu'une petite partie. Mais pour le poste d'architecte Azure, l'AZ-305 est tout à fait adapté.
+
+Pour devenir architecte AKS, ce n’est pas seulement l’AZ-305 qui fera de toi un expert, mais cette combinaison :
+
+CKA = compétences Kubernetes
+AZ-104 = compétences opérationnelles Azure
+AZ-305 = compétences en architecture Azure
+CKS = compétences en sécurité Kubernetes
+Terraform = compétences en infrastructure as code
+
+--
+
+Le parcours le plus adapté à votre profil
+Puisque vous avez déjà obtenu la certification CKA et que vous travaillez sur Azure, voici le parcours idéal :
+
+Certification CKA déjà obtenue
+        |
+        v
+AZ-104 - Administrateur Azure
+        |
+        v
+AZ-305 - Expert en architecture de solutions Azure
+        |
+        v
+CKS - Spécialiste en sécurité Kubernetes
+        |
+        v
+Terraform Associate / AZ-400
+
+Si vous suivez ce parcours, votre profil sera extrêmement solide :
+Ingénieur de plateforme Azure AKS / Architecte Azure Kubernetes
+
+--
+
+Ce que vous devez maîtriser pour AKS au travail
+En plus des certifications, vous devez absolument maîtriser ces concepts :
+
+AKS privé
+Réseau virtuel Hub-Spoke
+Azure CNI / Cilium
+Point de terminaison privé ACR
+Key Vault + Workload Identity
+Ingress NGINX / Application Gateway WAF
+Azure Monitor + Prometheus + Grafana
+Argo CD / Flux GitOps
+Terraform / Bicep
+HPA + Cluster Autoscaler + KEDA
+Sauvegarde + reprise après sinistre (DR)
+Stratégie de mise à niveau AKS
+
+--
+
+Si tu arrives à expliquer cette pile technologique, tes collègues verront en toi non seulement un « CKA », mais aussi un architecte AKS à part entière.
+
+--
+
+« Quelle sera ta prochaine certification ? »
+Tu peux répondre :
+
+Comme j’ai déjà obtenu la certification CKA, je souhaite passer l’AZ-104 pour renforcer mes compétences en administration Azure, puis l’AZ-305 pour devenir architecte de solutions Azure. Ensuite, je souhaite passer la certification CKS afin de renforcer mes compétences en matière de sécurité AKS.
+
+Ou, si tu souhaites te concentrer davantage sur l’architecture :
+
+Mon prochain objectif est l’AZ-305, car mon rôle consistera principalement à concevoir des architectures Azure et des environnements de production AKS.
+
+--
+
+Oui, l'AZ-305 est la bonne certification pour devenir architecte Azure.
+Mais si tu veux devenir un expert en AKS, ne néglige pas les bases d'Azure.
+
+La recommandation la plus sûre :
+
+Si tu n'as pas encore de certification Azure :
+CKA -> AZ-104 -> AZ-305 -> CKS
+
+Si vous maîtrisez déjà bien Azure :
+CKA -> AZ-305 -> CKS
+À mon avis, dans votre cas, puisque vous avez déjà la certification CKA et que vous travaillez sur l’infrastructure Azure, l’objectif le plus judicieux est le suivant :
+
+Commencez par l’AZ-104, puis passez directement à l’AZ-305.
+
+--
+
+Priorités    		Certification    	Quand la passer ?    		    	Raisons
+1 (Maintenant)    	AZ-305    		Dans 2 à 4 mois			    	Le plus pertinent pour votre travail (architecture AKS sur Azure)
+2    			AZ-400    		Après l’AZ-305    			DevOps + GitOps + CI/CD vers AKS
+3    			CKS    			Dans 6 à 8 mois    			Sécurité sur Kubernetes (très appréciée)
+
+--
+
+L'AZ-305 est-il adapté aux spécialistes AKS ?
+Réponse : Tout à fait, mais avec une réserve importante.
+
+Les avantages de l'AZ-305 pour vous :
+
+	De nombreux sujets liés à la conception de solutions AKS à l'échelle de l'entreprise
+	Aborde les thèmes suivants : Azure Landing Zone, réseaux (CNI Overlay, cluster privé), identité (Workload Identity), surveillance (Managed Prometheus), gouvernance, BCDR, etc.
+	Elle vous permet de passer du niveau « CKA capable d’exploiter AKS » à celui d’architecte AKS.
+	Cette certification est reconnue comme « Azure Solutions Architect Expert ».
+
+Inconvénients :
+
+	L’AZ-305 n’est pas une certification spécifique à AKS. Son contenu est assez vaste (il inclut les machines virtuelles, le stockage, les réseaux, l’identité et la surveillance).
+	Vous devrez également acquérir de nombreuses connaissances en dehors du domaine AKS.
+
+--
+
+Des conseils réalistes pour toi
+Comme tu as déjà obtenu ta certification CKA et que tu commences à travailler en tant que spécialiste AKS la semaine prochaine, voici ce que je te conseille :
+
+	Concentre-toi d’abord pendant 2 à 3 mois sur ton travail (expérience pratique en entreprise).
+	Parallèlement à ton travail, prépare-toi à l’examen AZ-305.
+	Fixez-vous comme objectif de réussir l’AZ-305 dans les 4 à 6 prochains mois.
+	Plan d’étude AZ-305 spécifique aux spécialistes AKS
+
+Priorité absolue (60 % du temps) :
+
+	Conception de solutions d’infrastructure (AKS)
+	Conception de la gouvernance et de l’identité (identité des charges de travail, Azure AD)
+	Conception de la surveillance (Prometheus géré, Grafana, Azure Monitor)
+	Conception du réseau et de la connectivité (Azure CNI Overlay, cluster privé, Azure Firewall, AGIC)
+	Conception de la continuité des activités (sauvegarde AKS, stratégie de reprise après sinistre)
+
+Priorité secondaire (40 % du temps) :
+
+	Stockage, calcul (hors conteneurs), identité hybride, migration
+
