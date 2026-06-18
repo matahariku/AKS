@@ -1,0 +1,333 @@
+Nous allons créer notre propre Helm Chart à partir de zéro, sans le récupérer depuis Artifact Hub.
+
+Voici ce que nous allons faire :
+Nous allons créer un Helm Chart nommé broapp.
+
+Cette application comprendra :
+
+Un serveur web Nginx
+Une simple page HTML personnalisée (« Hello Bro, voici notre Helm Chart fait maison ! »)
+Un ConfigMap pour gérer le contenu du site web
+Un Deployment, un Service, un Ingress
+Des limites de ressources, des sondes, des étiquettes, des annotations
+Un fichier values.yaml flexible et bien organisé
+C’est idéal pour s’entraîner car c’est assez simple tout en présentant une structure proche de celle d’un environnement de production.
+
+--
+
+Étape 1 : Créer la structure du Helm Chart à partir de zéro
+
+Exécutez les commandes suivantes dans votre terminal :
+
+# 1. Créer un nouveau chart
+helm create broapp
+
+# 2. Accéder au dossier
+cd broapp
+
+# 3. Supprimer les fichiers par défaut inutiles
+rm -rf charts/ templates/*.yaml templates/tests/ values.yaml
+
+--
+
+Étape 2 : Créer les fichiers à partir de zéro
+
+Créez les dossiers et fichiers suivants en respectant cette structure :
+
+broapp/
+├── Chart.yaml
+├── values.yaml
+├── templates/
+│   ├── _helpers.tpl
+│   ├── configmap.yaml
+│   ├── deployment.yaml
+│   ├── service.yaml
+│   ├── ingress.yaml
+│   └── NOTES.txt
+├── README.md
+└── .helmignore
+
+--
+
+Étape 3 : Remplir les fichiers un par un
+
+1. Chart.yaml
+
+apiVersion: v2
+name: broapp
+description: Helm Chart personnalisé - Hello Bro App
+type: application
+version: 0.1.0
+appVersion: « 1.0.0 »
+maintainers:
+  - name: YourName
+    email: you@email.com
+
+2. values.yaml
+
+replicaCount: 2
+
+image:
+  repository: nginx
+  tag: « 1.27-alpine »
+  pullPolicy: IfNotPresent
+
+nameOverride: « »
+fullnameOverride: « »
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: true
+  className: nginx
+  host: broapp.local
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 300m
+    memory: 256Mi
+
+livenessProbe:
+  httpGet:
+    path: /
+    port: http
+
+readinessProbe:
+  httpGet:
+    path: /
+    port: http
+
+--
+
+3. templates/_helpers.tpl
+{{- define « broapp.name » -}}
+{{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix « - » }}
+{{- end }}
+
+{{- define « broapp.fullname » -}}
+{{- if .Values.fullnameOverride }}
+{{- .Values.fullnameOverride | trunc 63 | trimSuffix « - » }}
+{{- else }}
+{{- $name := default .Chart.Name .Values.nameOverride }}
+{{- if contains $name .Release.Name }}
+{{- .Release.Name | trunc 63 | trimSuffix « - » }}
+{{- else }}
+{{- printf « %s-%s » .Release.Name $name | trunc 63 | trimSuffix « - » }}
+{{- end }}
+{{- end }}
+{{- end }}
+
+
+4. templates/configmap.yaml
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include « broapp.fullname » . }}-html
+  labels:
+    {{- include « broapp.labels » . | nindent 4 }}
+data:
+  index.html: |
+    <!DOCTYPE html>
+    <html>
+    <head><title>BroApp</title></head>
+    <body style="background: #0f172a; color: white; text-align: center; padding-top: 100px; font-family: Arial;">
+      <h1>🚀 Bonjour Bro !</h1>
+      <h2>Voici un Helm Chart créé par mes soins</h2>
+      <p>Cluster : <strong>{{ .Release.Namespace }}</strong></p>
+      <p>Nom de la version : <strong>{{ .Release.Name }}</strong></p>
+      <p>Version du graphique : <strong>{{ .Chart.Version }}</strong></p>
+    </body>
+    </html>
+
+--
+
+5. templates/deployment.yaml
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include « broapp.fullname » . }}
+  labels:
+    {{- include « broapp.labels » . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ include « broapp.name » . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include « broapp.name » . }}
+    spec:
+      containers:
+      - name: broapp
+        image: « {{ .Values.image.repository }}:{{ .Values.image.tag }} »
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - name: http
+          containerPort: 80
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+        volumeMounts:
+        - name: html
+          mountPath: /usr/share/nginx/html
+        livenessProbe:
+          {{- toYaml .Values.livenessProbe | nindent 10 }}
+        readinessProbe :
+          {{- toYaml .Values.readinessProbe | nindent 10 }}
+      volumes :
+      - nom : html
+        configMap :
+          nom : {{ include « broapp.fullname » . }}-html
+
+--
+
+6. templates/service.yaml et ingress.yaml + NOTES.txt
+
+=========================
+
+Selesaikan Helm Chart "broapp"
+Aku sudah buatkan file-file yang kurang supaya chart-nya bisa langsung dijalankan.
+
+Tambahkan / Update File Berikut:
+1. Update templates/_helpers.tpl (Ganti semuanya dengan ini)
+YAML
+
+{{- define "broapp.name" -}}
+{{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
+{{- define "broapp.fullname" -}}
+{{- if .Values.fullnameOverride }}
+{{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
+{{- else }}
+{{- $name := default .Chart.Name .Values.nameOverride }}
+{{- if contains $name .Release.Name }}
+{{- .Release.Name | trunc 63 | trimSuffix "-" }}
+{{- else }}
+{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" }}
+{{- end }}
+{{- end }}
+{{- end }}
+
+{{- define "broapp.labels" -}}
+helm.sh/chart: {{ include "broapp.chart" . }}
+{{ include "broapp.selectorLabels" . }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- end }}
+
+{{- define "broapp.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "broapp.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}
+
+{{- define "broapp.chart" -}}
+{{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
+{{- end }}
+2. Buat templates/service.yaml
+YAML
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "broapp.fullname" . }}
+  labels:
+    {{- include "broapp.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "broapp.selectorLabels" . | nindent 4 }}
+3. Buat templates/ingress.yaml
+YAML
+
+{{- if .Values.ingress.enabled -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "broapp.fullname" . }}
+  labels:
+    {{- include "broapp.labels" . | nindent 4 }}
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  rules:
+  - host: {{ .Values.ingress.host }}
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: {{ include "broapp.fullname" . }}
+            port:
+              name: http
+{{- end }}
+4. Buat templates/NOTES.txt
+YAML
+
+Thank you for installing {{ .Chart.Name }} version {{ .Chart.Version }} !
+
+**BroApp** has been deployed successfully! 🚀
+
+{{- if .Values.ingress.enabled }}
+You can access the application at:
+
+    http://{{ .Values.ingress.host }}
+
+{{- else }}
+You can access via port-forward:
+
+    kubectl port-forward svc/{{ include "broapp.fullname" . }} 8080:80
+    Then open browser: http://localhost:8080
+{{- end }}
+
+Command untuk melihat status:
+    helm status {{ .Release.Name }}
+    kubectl get all -l app={{ include "broapp.name" . }}
+
+le façon de tester le Chart :
+
+une fois le fichier est marché, fait running ces commands :
+
+# 1. Validation chart (c'est très important)
+helm lint .
+
+# 2. Install chart
+helm install bro-test . --namespace bro-test --create-namespace
+
+# 3. Lihat hasilnya
+kubectl get all -n bro-test
+helm list -n bro-test
+
+--
+
+une fois tous ça marche , essayez upgrade aussi:
+
+helm upgrade bro-test . --namespace bro-test --set replicaCount=3
+
+---
+Roadmap Expert Helm + AKS (On fait tous ça ensemble)
+le roadmap de level intermediare à expert:
+
+Level 2: Advanced Templating & Best Practices
+Level 3: Helm Dependencies, Subcharts, Library Charts
+Level 4: Helm + GitOps (Flux v2)
+Level 5: Helm Testing, Linting, Chart Testing (ct)
+Level 6: Helm Secrets Management di AKS
+Level 7: CI/CD Pipeline untuk Helm di Azure (GitHub Actions)
+Level 8: Custom Helm Controller + Advanced AKS Integration
+
+======
+

@@ -1,0 +1,267 @@
+On va installer Kubernetes sur Azure = AKS. Utilisons la méthode la plus rapide : Azure Cloud Shell + Azure CLI.
+
+Petit avertissement : AKS engendre des coûts liés aux nœuds VM et au répartiteur de charge/à l'adresse IP publique. Pour ce lab, n'oubliez pas de tout nettoyer à la fin.
+
+1. Ouvrez Azure Cloud Shell
+Connectez-vous au portail Azure :
+
+https://portal.azure.com
+Cliquez sur l’icône Cloud Shell en haut, puis sélectionnez Bash.
+
+2. Définissez les variables du laboratoire
+Commencez par copier-coller ceci :
+
+RG=rg-aks-lab
+AKS=aks-lab
+LOC=southeastasia
+NODE_SIZE=Standard_B2s
+Si la région southeastasia est saturée ou si le quota est insuffisant, remplacez par :
+
+LOC=eastasia
+
+3. Créer un groupe de ressources
+
+az group create \
+  --name $RG \
+  --location $LOC
+
+4. Créer un cluster AKS
+
+Voici la version économique du lab : 1 nœud, identité gérée, Azure CNI Overlay.
+
+az aks create \
+  --resource-group $RG \
+  --name $AKS \
+  --location $LOC \
+  --node-count 1 \
+  --node-vm-size $NODE_SIZE \
+  --enable-managed-identity \
+  --network-plugin azure \
+  --network-plugin-mode overlay \
+  --pod-cidr 10.244.0.0/16 \
+  --generate-ssh-keys
+
+Attends 5 à 10 minutes.
+
+Si tu obtiens une erreur indiquant que la taille de VM n’est pas disponible, utilise :
+
+NODE_SIZE=Standard_DS2_v2
+Puis relance la commande `az aks create`.
+
+5. Récupère le fichier kubeconfig
+
+az aks get-credentials \
+  --resource-group $RG \
+  --name $AKS \
+  --overwrite-existing
+
+Vérifie le cluster :
+
+kubectl get nodes -o wide
+kubectl get pods -A
+
+Si le statut « Ready » s'affiche pour les nœuds, cela signifie que ton Kubernetes est bien opérationnel sur Azure
+
+--
+
+6. Déployer la première application
+Créer un espace de noms :
+
+kubectl create namespace demo
+
+Déployer l'application « hello world » :
+
+kubectl create deployment web \
+  --image=mcr.microsoft.com/azuredocs/aks-helloworld:v1 \
+  -n demo
+
+Définir les demandes et limites de ressources pour plus de clarté :
+
+kubectl set resources deployment web \
+  -n demo \
+  --requests=cpu=50m,memory=64Mi \
+  --limits=cpu=200m,memory=128Mi
+
+Exposez le service sur Internet à l’aide d’un équilibreur de charge Azure :
+
+kubectl expose deployment web \
+  --type=LoadBalancer \
+  --port=80 \
+  --target-port=80 \
+  -n demo
+
+Vérifiez le service :
+
+kubectl get svc -n demo -w
+
+Attendez que l’adresse EXTERNAL-IP s’affiche.
+
+Accédez ensuite à :
+
+http://EXTERNAL-IP
+Exemple :
+
+http://20.xxx.xxx.xxx
+
+--
+
+7. Augmenter le nombre de pods
+
+Passez de 1 pod à 3 pods :
+
+kubectl scale deployment web \
+  --replicas=3 \
+  -n demo
+
+Vérification :
+
+kubectl get pods -n demo -o wide
+Vérification du déploiement :
+
+kubectl get deployment -n demo
+
+--
+
+8. Testez le déploiement de la mise à jour
+
+Mettez à jour l'image vers la version v2 :
+
+kubectl set image deployment/web \
+  *=mcr.microsoft.com/azuredocs/aks-helloworld:v2 \
+  -n demo
+
+Vérifiez le déploiement :
+
+kubectl rollout status deployment/web -n demo
+
+Vérifier l'historique :
+
+kubectl rollout history deployment/web -n demo
+
+Si vous souhaitez revenir en arrière :
+
+kubectl rollout undo deployment/web -n demo
+
+--
+
+9. Utilisation de l'autoscaling HPA
+
+Créer un Horizontal Pod Autoscaler :
+
+kubectl autoscale deployment web \
+  --cpu-percent=50 \
+  --min=1 \
+  --max=5 \
+  -n demo
+
+Vérifier le HPA :
+
+kubectl get hpa -n demo
+Vérifier toutes les ressources :
+
+kubectl get all -n demo
+
+--
+
+10. Commandes indispensables pour le dépannage
+
+En cas de problème avec un pod :
+
+kubectl describe pod <nom-du-pod> -n demo
+kubectl logs <nom-du-pod> -n demo
+kubectl get events -n demo --sort-by=.metadata.creationTimestamp
+
+Si le service/l’adresse IP n’apparaît pas encore :
+
+kubectl describe svc web -n demo
+
+Pour accéder au conteneur :
+
+kubectl exec -it <nom-du-pod> -n demo -- sh
+
+--
+
+11. Bonus : consulter AKS depuis Azure
+
+Vérifier le cluster :
+
+az aks show \
+  --resource-group $RG \
+  --name $AKS \
+  -o table
+
+Vérifier le pool de nœuds :
+
+az aks nodepool list \
+  --resource-group $RG \
+  --cluster-name $AKS \
+  -o table
+
+Vérifier les ressources créées par Azure :
+
+az resource list \
+  --resource-group $RG \
+  -o table
+
+AKS crée également un groupe de ressources supplémentaire, généralement nommé comme suit :
+
+MC_rg-aks-lab_aks-lab_southeastasia
+
+Vérification :
+
+az group list -o table
+
+--
+
+12. Nettoyage pour éviter les frais
+
+Une fois que vous avez terminé, supprimez tout :
+
+az group delete \
+  --name $RG \
+  --yes \
+  --no-wait
+
+Vérifiez ensuite si le groupe a bien disparu :
+
+az group list -o table
+
+--**--
+
+Résumé de l'architecture de notre laboratoire
+
+Groupe de ressources Azure
+        |
+        v
+Plane de contrôle géré AKS
+        |
+        v
+Pool de nœuds : 1x Standard_B2s
+        |
+        v
+Pods : déploiement web
+        |
+        v
+Type de service : LoadBalancer
+        |
+        v
+IP publique Azure
+        |
+        v
+Utilisateur du navigateur
+
+Si la commande ci-dessus s'est exécutée, cela signifie que vous disposez désormais d'un AKS opérationnel sur Azure.
+
+--
+
+La prochaine étape consiste à passer au niveau supérieur avec :
+
+AKS + ACR
+AKS + Ingress NGINX
+AKS + Key Vault
+AKS + Workload Identity
+AKS + Private Cluster
+AKS + Terraform
+Pour l’instant, continue jusqu’à ce que la commande `kubectl get nodes` affiche « Ready ».
+
+--

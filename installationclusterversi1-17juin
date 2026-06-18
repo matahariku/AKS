@@ -1,0 +1,100 @@
+Configuration d'un laboratoire à domicile 2025 (recommandations)
+Nous allons créer un cluster avec la configuration suivante :
+
+Azure CNI Overlay (économie d'adresses IP)
+1 pool de nœuds système + 1 pool de nœuds utilisateur
+Workload Identity activée
+Azure Container Registry (ACR)
+Autoscaler de cluster
+Dernière version de Kubernetes
+Cluster public avec IP autorisée (seule l'IP de votre domicile est autorisée à y accéder)
+
+--
+
+Étapes (Installation cluster)
+1. Préparation
+
+# Connectez-vous d'abord
+az login
+az account set --subscription « Nom-de-votre-abonnement »
+
+# Créez un groupe de ressources
+az group create --name rg-aks-homelab --location southeastasia
+
+# Créer un registre de conteneurs Azure
+az acr create --resource-group rg-aks-homelab --name acrhomelabbro --sku Premium --admin-enabled false
+
+2. créer le Virtual Network
+
+az network vnet create \
+  --resource-group rg-aks-homelab \
+  --name vnet-aks-homelab \
+  --address-prefixes 10.0.0.0/16 \
+  --location southeastasia
+
+az network vnet subnet create \
+  --resource-group rg-aks-homelab \
+  --vnet-name vnet-aks-homelab \
+  --name aks-subnet \
+  --address-prefixes 10.0.1.0/24
+
+3. créer AKS Cluster (Principal Command)
+
+az aks create \
+  --resource-group rg-aks-homelab \
+  --name aks-homelab \
+  --node-count 2 \
+  --min-count 2 \
+  --max-count 6 \
+  --enable-cluster-autoscaler \
+  --network-plugin azure \
+  --network-plugin-mode overlay \
+  --pod-cidr 192.168.0.0/16 \
+  --service-cidr 10.1.0.0/16 \
+  --dns-service-ip 10.1.0.10 \
+  --enable-managed-identity \
+  --assign-identity $(az identity show --resource-group rg-aks-homelab --name aks-identity --query id -o tsv 2>/dev/null || \
+     az identity create --resource-group rg-aks-homelab --name aks-identity --query id -o tsv) \
+  --attach-acr acrhomelabbro \
+  --enable-workload-identity \
+  --nodepool-name system \
+  --node-vm-size Standard_B4ms \
+  --zones 1 2 \
+  --generate-ssh-keys \
+  --yes
+
+Remarque : la commande ci-dessus créera automatiquement une identité gérée.
+
+4. Ajouter un pool de nœuds utilisateur (recommandé)
+
+az aks nodepool add \
+  --resource-group rg-aks-homelab \
+  --cluster-name aks-homelab \
+  --name userpool \
+  --node-count 2 \
+  --min-count 2 \
+  --max-count 8 \
+  --enable-cluster-autoscaler \
+  --node-vm-size Standard_D4s_v5 \
+  --mode User
+
+5. Récupérer le fichier Kubeconfig et effectuer des tests
+
+az aks get-credentials --resource-group rg-aks-homelab --name aks-homelab --overwrite-existing
+
+kubectl get nodes -o wide
+kubectl get pods -A
+
+--
+
+Étape suivante (C'est parti !)
+Une fois le cluster opérationnel, nous allons installer les éléments essentiels. Tapez « OUI » si vous êtes parvenu jusqu'à cette étape, je poursuivrai ensuite avec :
+
+Installation du contrôleur NGINX Ingress + DNS externe
+Configuration de l'identité de la charge de travail (démo)
+Installation de Flux v2 (GitOps)
+Configuration de la surveillance (Prometheus + Grafana)
+Déploiement d'une application d'exemple
+
+--
+
