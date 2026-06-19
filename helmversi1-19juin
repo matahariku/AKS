@@ -1,0 +1,187 @@
+Level 2 — Advanced Helm Chart Development.
+
+--**--
+
+Advanced Values (plus fleksibel)
+Horizontal Pod Autoscaler (HPA)
+SecurityContext + Pod Security Standards
+Environment Variables + Config
+Resource Presets (small, medium, large)
+Conditional templating (if, with, range)
+Better debugging technique
+
+--**--
+
+Update Chart =
+
+1. Update values.yaml (changer tous ses valeurs)
+
+replicaCount: 2
+
+image:
+  repository: nginx
+  tag: "1.27-alpine"
+  pullPolicy: IfNotPresent
+
+nameOverride: ""
+fullnameOverride: ""
+
+# Resource presets
+resources:
+  small:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 300m
+      memory: 256Mi
+  medium:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 500m
+      memory: 1024Mi
+
+# Pilih preset
+resourcePreset: small
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: true
+  className: nginx
+  host: broapp.local
+  tls: false
+
+hpa:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+
+securityContext:
+  runAsUser: 101
+  runAsNonRoot: true
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+
+config:
+  message: "Hello Bro! Ini versi Advanced Helm Chart"
+  environment: production
+  featureX: true
+
+--**--
+
+2. Buat file baru: templates/hpa.yaml
+
+{{- if .Values.hpa.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "broapp.fullname" . }}
+  labels:
+    {{- include "broapp.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "broapp.fullname" . }}
+  minReplicas: {{ .Values.hpa.minReplicas }}
+  maxReplicas: {{ .Values.hpa.maxReplicas }}
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.hpa.targetCPUUtilizationPercentage }}
+{{- end }}
+
+--**--
+
+3. Update templates/deployment.yaml (Ganti dengan versi lebih advanced ini)
+
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "broapp.fullname" . }}
+  labels:
+    {{- include "broapp.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "broapp.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "broapp.selectorLabels" . | nindent 8 }}
+    spec:
+      securityContext:
+        {{- toYaml .Values.securityContext | nindent 8 }}
+      
+      containers:
+      - name: broapp
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        
+        ports:
+        - name: http
+          containerPort: 80
+        
+        resources:
+          {{- $preset := index .Values.resources .Values.resourcePreset }}
+          {{- toYaml $preset | nindent 10 }}
+        
+        volumeMounts:
+        - name: html
+          mountPath: /usr/share/nginx/html
+          readOnly: true
+
+        env:
+        - name: ENVIRONMENT
+          value: {{ .Values.config.environment | quote }}
+        - name: MESSAGE
+          value: {{ .Values.config.message | quote }}
+
+        livenessProbe:
+          httpGet:
+            path: /
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 5
+
+      volumes:
+      - name: html
+        configMap:
+          name: {{ include "broapp.fullname" . }}-html
+
+--***--
+
+On fait quoi maintenant ? 
+
+Update les 3  fichier au dessus.
+
+cd broapp
+helm lint .
+helm upgrade --install bro-test . --namespace bro-test --create-namespace
+kubectl get all -n bro-test
+
+
+fait error les scripts :
+
+DONE →  Si tu a deja fait update le fichier et success  install/upgrade
+ERROR → Si error (copy error)
+direct NEXT → on saute vers Level 3 (Library Chart + Umbrella Chart + Dependencies)
+
+=======

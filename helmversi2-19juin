@@ -1,0 +1,340 @@
+🔥 Next continue
+:
+
+# Lab Next: **Custom Image + Custom Helm Chart ke Azure Container Registry OCI**
+
+On fait l'envs production:
+
+```
+Custom App Code
+   |
+   v
+Build Docker Image pakai ACR Task
+   |
+   v
+Push image à Azure Container Registry
+   |
+   v
+Package Helm chart fait soi-meme
+   |
+   v
+Push Helm chart à ACR etre OCI artifact
+   |
+   v
+Deploy à AKS de ACR
+```
+
+le skill important pour  **Helm + AKS expert**.
+
+---
+
+## 1. Set variable
+
+```bash
+RG=rg-aks-lab
+AKS=aks-lab
+LOC=southeastasia
+ACR=acrbro$RANDOM$RANDOM
+```
+
+Check AKS:
+
+```bash
+kubectl get nodes
+```
+---
+
+## 2. Créer Azure Container Registry
+
+```bash
+az acr create \
+  --resource-group $RG \
+  --name $ACR \
+  --sku Basic \
+  --location $LOC
+```
+
+Check:
+
+```bash
+az acr show -n $ACR -o table
+```
+
+---
+
+## 3. Attach ACR à AKS
+
+Pour que  node AKS puisse  pull private image de ACR.
+
+```bash
+az aks update \
+  --resource-group $RG \
+  --name $AKS \
+  --attach-acr $ACR
+```
+
+---
+
+## 4. Créer soi-meme le custom app image 
+
+de repo parent égale à le repo `broapp`, Créer le repo app:
+
+```bash
+mkdir -p app
+```
+
+Créer `index.html`:
+
+```bash
+cat > app/index.html <<'EOF'
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Broapp AKS</title>
+</head>
+<body>
+  <h1>Halo bro, ini app sendiri dari ACR + Helm OCI + AKS</h1>
+  <p>Image custom, chart custom, deploy ke Kubernetes Azure.</p>
+</body>
+</html>
+EOF
+```
+
+Créer `Dockerfile`:
+
+```bash
+cat > app/Dockerfile <<'EOF'
+FROM nginx:1.27-alpine
+COPY index.html /usr/share/nginx/html/index.html
+EXPOSE 80
+EOF
+```
+
+Build image direct à ACR, on n' as besoin le  Docker local:
+
+```bash
+az acr build \
+  --registry $ACR \
+  --image broapp:v1 \
+  ./app
+```
+
+Check image:
+
+```bash
+az acr repository list -n $ACR -o table
+az acr repository show-tags -n $ACR --repository broapp -o table
+```
+
+---
+
+## 5. Package Helm chart soi-meme
+
+Assurer le repo  chart s'appelle `broapp`.
+
+```bash
+helm lint ./broapp
+```
+
+Prendre le chart version:
+
+```bash
+CHART_VERSION=$(awk '/^version:/ {print $2}' broapp/Chart.yaml | tr -d '"')
+echo $CHART_VERSION
+```
+
+Package:
+
+```bash
+helm package ./broapp
+```
+
+Output est:
+
+```text
+broapp-0.2.0.tgz
+```
+
+---
+
+## 6. Login Helm à ACR OCI
+
+Utiliser token, assurer le secu pour  Cloud Shell:
+
+```bash
+TOKEN=$(az acr login --name $ACR --expose-token --output tsv --query accessToken)
+
+echo $TOKEN | helm registry login $ACR.azurecr.io \
+  --username 00000000-0000-0000-0000-000000000000 \
+  --password-stdin
+```
+
+---
+
+## 7. Push Helm chart à ACR
+
+```bash
+helm push broapp-$CHART_VERSION.tgz oci://$ACR.azurecr.io/helm
+```
+
+Cek chart dari ACR:
+
+```bash
+helm show chart oci://$ACR.azurecr.io/helm/broapp --version $CHART_VERSION
+```
+
+---
+
+## 8. Deploy à AKS de ACR OCI
+
+Maintenant Helm chart est appris de ACR, image aussi de ACR.
+
+```bash
+helm upgrade --install bro-release \
+  oci://$ACR.azurecr.io/helm/broapp \
+  --version $CHART_VERSION \
+  -n demo-acr \
+  --create-namespace \
+  --set image.repository=$ACR.azurecr.io/broapp \
+  --set image.tag=v1 \
+  --set service.type=LoadBalancer \
+  --atomic \
+  --wait \
+  --timeout 10m
+```
+
+Check:
+
+```bash
+helm list -n demo-acr
+kubectl get all -n demo-acr
+kubectl get svc -n demo-acr
+```
+
+Attend  External IP:
+
+```bash
+kubectl get svc -n demo-acr -w
+```
+
+Ouvrir:
+
+```text
+http://EXTERNAL-IP
+```
+
+---
+
+## 9. Helm test
+
+```bash
+helm test bro-release -n demo-acr --logs
+```
+
+Si success, c'est à dire le service est pu acceder de  cluster.
+
+---
+
+## 10. Simulation release v2
+
+Changer app:
+
+```bash
+cat > app/index.html <<'EOF'
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Broapp AKS v2</title>
+</head>
+<body>
+  <h1>Broapp v2 release </h1>
+  <p>Ini upgrade image via Helm à AKS.</p>
+</body>
+</html>
+EOF
+```
+
+Build image v2:
+
+```bash
+az acr build \
+  --registry $ACR \
+  --image broapp:v2 \
+  ./app
+```
+
+Upgrade release:
+
+```bash
+helm upgrade bro-release \
+  oci://$ACR.azurecr.io/helm/broapp \
+  --version $CHART_VERSION \
+  -n demo-acr \
+  --set image.repository=$ACR.azurecr.io/broapp \
+  --set image.tag=v2 \
+  --set service.type=LoadBalancer \
+  --atomic \
+  --wait \
+  --timeout 10m
+```
+
+Check rollout:
+
+```bash
+kubectl rollout status deployment/bro-release-broapp -n demo-acr
+helm history bro-release -n demo-acr
+```
+
+Si on veut faire le rollback:
+
+```bash
+helm rollback bro-release 1 -n demo-acr
+```
+
+---
+
+# Le travail cette session:
+
+
+```text
+ACR est private container registry
+ACR est Helm OCI registry
+AKS pull private image de ACR
+Helm chart custom versioning
+Helm upgrade image version
+Helm rollback
+Helm test
+Azure-native build utilise az acr build
+```
+
+fait la difference maintenant:
+
+```text
+Image tag change:
+  broapp:v1 -> broapp:v2
+  càd aplication a deja changé.
+
+Chart version change:
+  broapp chart 0.2.0 -> 0.3.0
+  càd template Kubernetes/Helm change.
+```
+
+---
+
+# Next Apres le boulot on doit faire :
+
+
+```text
+1. NGINX Ingress Controller + Helm chart ingress
+2. TLS utilise cert-manager
+3. Azure Key Vault + CSI Driver
+4. Workload Identity
+5. GitOps utilise Argo CD deploy Helm chart de ACR
+```
+
+les étapes conseiller:
+
+> **Fait ACR OCI d'abord. puis allez vers Ingress + TLS, à la fin Key Vault + Workload Identity.**
+
+==============
+
