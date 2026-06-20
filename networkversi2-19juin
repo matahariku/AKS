@@ -1,0 +1,636 @@
+🔥 next step le reseau:
+
+# Next Lab: **NGINX Ingress + Custom Helm Chart à AKS**
+
+Maintenant on change flow réseau :
+
+```text
+User -> Azure LoadBalancer direct à Service app
+```
+
+at real-world:
+
+```text
+User
+  |
+  v
+Azure Load Balancer Public IP
+  |
+  v
+NGINX Ingress Controller
+  |
+  v
+Ingress Resource de notre Helm chart
+  |
+  v
+Service ClusterIP
+  |
+  v
+Pod broapp
+```
+
+> Note: pour **Ingress Controller** comme NGINX/cert-manager, normallement on utilise official Helm chart.  
+> on voit le custom permanent **app chart broapp soi-meme**.
+
+---
+
+# 1. Check AKS et release app
+
+```bash
+kubectl get nodes
+helm list -A
+```
+
+si notre release dans le namespace `demo-acr`, donc on peut ultise maintent c'est ns :
+
+```bash
+APP_NS=demo-acr
+APP_RELEASE=bro-release
+```
+
+Mais si  namespace different, adaptez-le.
+
+---
+
+# 2. Install NGINX Ingress Controller via Helm
+
+Ajouter repo NGINX Ingress:
+
+```bash
+helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+helm repo update
+```
+
+Install à namespace `ingress-nginx`:
+
+```bash
+helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
+  -n ingress-nginx \
+  --create-namespace \
+  --set controller.replicaCount=1 \
+  --set controller.service.annotations."service\.beta\.kubernetes\.io/azure-load-balancer-health-probe-request-path"=/healthz \
+  --atomic \
+  --wait \
+  --timeout 10m
+```
+
+Check:
+
+```bash
+kubectl get pods -n ingress-nginx
+kubectl get svc -n ingress-nginx
+```
+
+Attend jusqu'au le service `ingress-nginx-controller` a le `EXTERNAL-IP`:
+
+```bash
+kubectl get svc ingress-nginx-controller -n ingress-nginx -w
+```
+
+Si il existe deja, prend le IP:
+
+```bash
+INGRESS_IP=$(kubectl get svc ingress-nginx-controller -n ingress-nginx -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+echo $INGRESS_IP
+```
+
+---
+
+# 3. Créer le  hostname lab utilise sslip.io
+
+parce que on n'a pas encore le vrai domain , utilise `sslip.io`.
+
+```bash
+HOST="${INGRESS_IP}.sslip.io"
+echo $HOST
+```
+
+exemple le resultat:
+
+```text
+20.212.10.5.sslip.io
+```
+
+ce domain  otomatquement  resolve vers IP ingress controller.
+
+Test DNS:
+
+```bash
+nslookup $HOST
+```
+
+---
+
+# 4. Buat values khusus ingress untuk chart broapp
+
+Maintenant on ne expose  plus avec `LoadBalancer`.  
+On change le strategie:
+
+```text
+service.type = ClusterIP
+ingress.enabled = true
+ingress.className = nginx
+```
+
+Créer fichier:
+
+```bash
+cat > values-ingress.yaml <<EOF
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+  hosts:
+    - host: ${HOST}
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+EOF
+```
+
+On regarde:
+
+```bash
+cat values-ingress.yaml
+```
+
+---
+
+# 5. Upgrade app Helm avec ingress aktif
+
+## Opsi A — Si ton chart reste en local
+
+Si le repo `broapp` a encore:
+
+```bash
+helm upgrade $APP_RELEASE ./broapp \
+  -n $APP_NS \
+  -f values-ingress.yaml \
+  --atomic \
+  --wait \
+  --timeout 10m
+```
+
+Si tu utulise encore le custom image du ancien ACR:
+
+```bash
+helm upgrade $APP_RELEASE ./broapp \
+  -n $APP_NS \
+  -f values-ingress.yaml \
+  --set image.repository=$ACR.azurecr.io/broapp \
+  --set image.tag=v2 \
+  --atomic \
+  --wait \
+  --timeout 10m
+```
+
+---
+
+## Opsi B — Si ton chart deja dans ACR OCI
+
+Assurer ces variables il ya encore:
+
+```bash
+echo $ACR
+echo $CHART_VERSION
+```
+
+Si ils n'eteint plus la, set manual adapter avec ton  ACR:
+
+```bash
+ACR=<nom -ton-acr->
+CHART_VERSION=0.2.0
+```
+
+Login Helm ver ACR:
+
+```bash
+TOKEN=$(az acr login --name $ACR --expose-token --output tsv --query accessToken)
+
+echo $TOKEN | helm registry login $ACR.azurecr.io \
+  --username 00000000-0000-0000-0000-000000000000 \
+  --password-stdin
+```
+
+Upgrade de OCI:
+
+```bash
+helm upgrade $APP_RELEASE \
+  oci://$ACR.azurecr.io/helm/broapp \
+  --version $CHART_VERSION \
+  -n $APP_NS \
+  -f values-ingress.yaml \
+  --set image.repository=$ACR.azurecr.io/broapp \
+  --set image.tag=v2 \
+  --atomic \
+  --wait \
+  --timeout 10m
+```
+
+---
+
+# 6. Check Ingress Resource
+
+```bash
+kubectl get ingress -n $APP_NS
+```
+
+Detail:
+
+```bash
+kubectl describe ingress -n $APP_NS
+```
+
+Cek service app:
+
+```bash
+kubectl get svc -n $APP_NS
+```
+
+doit etre le service app maintenant:
+
+```text
+TYPE: ClusterIP
+```
+
+Check pod:
+
+```bash
+kubectl get pods -n $APP_NS
+```
+
+---
+
+# 7. Test acces via Ingress
+
+Test HTTP:
+
+```bash
+curl -I http://$HOST
+```
+
+Regarde le content:
+
+```bash
+curl http://$HOST
+```
+
+Où le browser:
+
+```text
+http://20.x.x.x.sslip.io
+```
+
+Si sortie le page de notre app, càd succes 🔥
+
+---
+
+# 8. Troubleshooting Ingress
+
+Si ne pas encore running , check :
+
+## Check ingress controller
+
+```bash
+kubectl get pods -n ingress-nginx
+kubectl logs -n ingress-nginx deploy/ingress-nginx-controller
+```
+
+## Check ingress app
+
+```bash
+kubectl describe ingress -n $APP_NS
+```
+
+## Check service et endpoint
+
+```bash
+kubectl get svc -n $APP_NS
+kubectl get endpoints -n $APP_NS
+```
+
+Endpoint doit etre le IP pod. Si ne pas sortir, càd le selector service  ne pas  match avec le label pod.
+
+## Test dans le cluster
+
+```bash
+kubectl run testcurl -n $APP_NS --image=curlimages/curl:8.8.0 -it --rm --restart=Never -- \
+  curl -v http://$APP_RELEASE-broapp
+```
+
+Si le release nom est  `bro-release`, normallement le service :
+
+```text
+bro-release-broapp
+```
+
+---
+
+# 9. Petit note: aktivez le TLS utilise cert-manager
+
+Si HTTP est la. Donc on continue le TLS lab.
+
+Install cert-manager:
+
+```bash
+helm repo add jetstack https://charts.jetstack.io
+helm repo update
+```
+
+```bash
+helm upgrade --install cert-manager jetstack/cert-manager \
+  -n cert-manager \
+  --create-namespace \
+  --set crds.enabled=true \
+  --atomic \
+  --wait \
+  --timeout 10m
+```
+
+Check:
+
+```bash
+kubectl get pods -n cert-manager
+kubectl get crd | grep cert-manager
+```
+
+---
+
+# 10. Créer le self-signed Issuer pour lab
+
+Pour lab sans le vrai domain , donc on utilise  self-signed certificate.
+
+```bash
+cat > selfsigned-issuer.yaml <<EOF
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: broapp-selfsigned
+  namespace: ${APP_NS}
+spec:
+  selfSigned: {}
+EOF
+```
+
+Apply:
+
+```bash
+kubectl apply -f selfsigned-issuer.yaml
+```
+
+Check:
+
+```bash
+kubectl get issuer -n $APP_NS
+```
+
+---
+
+# 11. Créer values TLS pour  notre  Helm chart 
+
+```bash
+cat > values-ingress-tls.yaml <<EOF
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/issuer: broapp-selfsigned
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  hosts:
+    - host: ${HOST}
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: broapp-tls
+      hosts:
+        - ${HOST}
+EOF
+```
+
+Upgrade app:
+
+## Si chart local:
+
+```bash
+helm upgrade $APP_RELEASE ./broapp \
+  -n $APP_NS \
+  -f values-ingress-tls.yaml \
+  --atomic \
+  --wait \
+  --timeout 10m
+```
+
+## Si chart du ACR OCI:
+
+```bash
+helm upgrade $APP_RELEASE \
+  oci://$ACR.azurecr.io/helm/broapp \
+  --version $CHART_VERSION \
+  -n $APP_NS \
+  -f values-ingress-tls.yaml \
+  --set image.repository=$ACR.azurecr.io/broapp \
+  --set image.tag=v2 \
+  --atomic \
+  --wait \
+  --timeout 10m
+```
+
+---
+
+# 12. Check certificate
+
+```bash
+kubectl get certificate -n $APP_NS
+kubectl describe certificate broapp-tls -n $APP_NS
+kubectl get secret broapp-tls -n $APP_NS
+```
+
+Test HTTPS:
+
+```bash
+curl -k https://$HOST
+```
+
+Pourquoi utilise  `-k`?
+
+Car c'est un self-signed certificate qui ne crois pas le browser/OS. Pour la production utilisera  Let’s Encrypt où Azure Key Vault certificate.
+
+---
+
+# 13. Si tu as le vrai domain, Donc tu doit utiliser le Let’s Encrypt
+
+Si tu as un domain
+
+```text
+broapp.domainkamu.com
+```
+
+Créer DNS A record:
+
+```text
+broapp.domainkamu.com -> INGRESS_IP
+```
+
+Puis créer le ClusterIssuer:
+
+```bash
+EMAIL=you@example.com
+```
+
+```bash
+cat > letsencrypt-clusterissuer.yaml <<EOF
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-http01
+spec:
+  acme:
+    email: ${EMAIL}
+    server: https://acme-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: letsencrypt-http01-account-key
+    solvers:
+      - http01:
+          ingress:
+            ingressClassName: nginx
+EOF
+```
+
+Apply:
+
+```bash
+kubectl apply -f letsencrypt-clusterissuer.yaml
+```
+
+Puis le value de la production:
+
+```bash
+REAL_HOST=broapp.domainkamu.com
+```
+
+```bash
+cat > values-prod-letsencrypt.yaml <<EOF
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-http01
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  hosts:
+    - host: ${REAL_HOST}
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: broapp-letsencrypt-tls
+      hosts:
+        - ${REAL_HOST}
+EOF
+```
+
+Upgrade:
+
+```bash
+helm upgrade $APP_RELEASE ./broapp \
+  -n $APP_NS \
+  -f values-prod-letsencrypt.yaml \
+  --atomic \
+  --wait \
+  --timeout 10m
+```
+
+Check:
+
+```bash
+kubectl get certificate -n $APP_NS
+kubectl get challenge,order -n $APP_NS
+```
+
+---
+
+# 14. Ton nouveau Skill est :
+
+Avec cette etape tu asdeja joué dans le  real AKS pattern:
+
+```text
+NGINX Ingress Controller
+Azure Public Load Balancer
+Ingress Resource dari custom Helm chart
+Service ClusterIP
+TLS via cert-manager
+Self-signed lab certificate
+Preparation for Let's Encrypt production
+```
+
+Le arsitecture  Maintenant:
+
+```text
+Browser
+  |
+  | http/https
+  v
+20.x.x.x.sslip.io
+  |
+  v
+Azure Load Balancer
+  |
+  v
+NGINX Ingress Controller Pod
+  |
+  v
+Ingress bro-release-broapp
+  |
+  v
+Service bro-release-broapp ClusterIP
+  |
+  v
+Pod broapp
+```
+
+---
+
+# 15. Next apres Ingress + TLS
+
+si tous etapes en haut sont bien reussi, le next est:
+
+```text
+Azure Key Vault + AKS Workload Identity + Helm chart integration
+```
+
+Pourquoi est il important ??
+
+Car la production AKS ne sont pas bon si les secrets on depose dans le `values.yaml`.
+
+Target next lab:
+
+```text
+Azure Key Vault
+  |
+  v
+SecretProviderClass via Helm
+  |
+  v
+AKS Workload Identity
+  |
+  v
+Pod lit secret/cert de Key Vault
+```
+
+Donc apres on a bien reussi le ingress :
+
+> **ok boss  ! le next Key Vault + Workload Identity**

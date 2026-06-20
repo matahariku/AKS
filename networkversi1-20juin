@@ -1,0 +1,157 @@
+**✅ Level 3 — Production Grade Helm Chart**
+
+Maintenant Chartt `broapp` sera plu profesional, reusable, et aprocher env prod.
+
+---
+
+### **Level 3 Goals:**
+
+- Créer **Library Chart** (common helpers)
+- Ajouter `values.schema.json` (validation values)
+- Ajouter `affinity`, `tolerations`, `nodeSelector` (très important dans AKS)
+- Utiliser `tpl` function pour plus dymamique
+- plus propre et scalable
+
+---
+
+### l'étape est:
+
+#### 1. Créer Library Chart (le plus important)
+
+Créer le repo et le fichier:
+
+```bash
+mkdir -p broapp/charts/common/templates
+```
+
+**File:** `broapp/charts/common/Chart.yaml`
+```yaml
+apiVersion: v2
+name: common
+description: Common library chart for broapp
+type: library
+version: 0.1.0
+```
+
+**File:** `broapp/charts/common/templates/_helpers.tpl`
+
+```yaml
+{{- define "common.labels" -}}
+helm.sh/chart: {{ include "common.chart" . }}
+{{ include "common.selectorLabels" . }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- end }}
+
+{{- define "common.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "common.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}
+
+{{- define "common.name" -}}
+{{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
+{{- define "common.chart" -}}
+{{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
+{{- define "common.image" -}}
+{{- printf "%s:%s" .Values.image.repository .Values.image.tag }}
+{{- end }}
+```
+
+#### 2. Update `Chart.yaml` (à root repo broapp)
+
+```yaml
+apiVersion: v2
+name: broapp
+description: Advanced Helm Chart soi-meme - Production Ready
+type: application
+version: 0.2.0
+appVersion: "1.0.0"
+dependencies:
+  - name: common
+    version: 0.1.0
+    repository: file://./charts/common
+```
+
+#### 3. Update `values.yaml` (Ajouter ce value )
+
+Ajouter ces lignes le plus en bas de ce fichier  `values.yaml`:
+
+```yaml
+# AKS Specific Configuration
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# Environment specific
+environment: production
+
+# Azure Workload Identity (On utlilisera)
+workloadIdentity:
+  enabled: false
+  clientId: ""
+
+# Schema validation will be enforced
+```
+
+#### 4. Créer le fichier validation : `values.schema.json`
+
+créer ce ficher dans le root folder `broapp/`:
+
+```json
+{
+  "$schema": "http://json-schema.org/schema#",
+  "type": "object",
+  "properties": {
+    "replicaCount": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "image": {
+      "type": "object",
+      "properties": {
+        "repository": { "type": "string" },
+        "tag": { "type": "string" }
+      },
+      "required": ["repository", "tag"]
+    },
+    "resourcePreset": {
+      "type": "string",
+      "enum": ["small", "medium"]
+    },
+    "ingress": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "host": { "type": "string" }
+      }
+    }
+  },
+  "required": ["image", "resourcePreset"]
+}
+```
+
+---
+
+### C'est quoi le next ?
+
+1. Créer le repo et le fichier celui comme ci-dessus.
+2. Update `Chart.yaml`, `values.yaml`, et ajouter `values.schema.json`.
+3. Executer pour faire le test:
+
+```bash
+cd broapp
+
+# Update dependency
+helm dependency update
+
+# Lint + Validate schema
+helm lint .
+helm template bro-test . --namespace bro-test --debug
+```
+
+---
+
+
